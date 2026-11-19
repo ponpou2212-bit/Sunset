@@ -111,6 +111,7 @@ pre{margin:0;padding:10px;white-space:pre-wrap;font:14px/1.6 Georgia,serif;backg
 <div><label for="conc">Số chương dịch song song</label><input id="conc" type="number" value="2" min="1" max="6"></div>
 <div><label for="temp">Temperature</label><input id="temp" type="number" value="0.7" min="0" max="1.5" step="0.1"></div>
 </div>
+<div class="g2"><div><label for="tmo">Chờ AI tối đa mỗi lượt (giây)</label><input id="tmo" type="number" value="90" min="20"></div><div></div></div>
 <div class="g2"><div><label for="pin">Giá mỗi 1 triệu token vào ($, để 0 nếu miễn phí)</label><input id="pin" type="number" value="0" min="0" step="0.01"></div><div><label for="pout">Giá mỗi 1 triệu token ra ($)</label><input id="pout" type="number" value="0" min="0" step="0.01"></div></div>
 <p class="note">Key chỉ gửi thẳng tới nhà cung cấp AI bạn chọn, không qua máy chủ nào khác. Nên tạo key riêng và đặt hạn mức chi tiêu.</p>
 </section>
@@ -279,7 +280,7 @@ function updEst(){
  $('#est').textContent=`Ước tính cho khoảng đã chọn: ${n} chương chưa dịch, khoảng ${req} request, ${ti.toLocaleString('vi-VN')} token vào, ${to.toLocaleString('vi-VN')} token ra`+(c?`, khoảng $${c.toFixed(3)}`:'')+' (chỉ để tham khảo).';
 }
 function msToPT(){const n=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Los_Angeles'}));const m=new Date(n);m.setHours(24,1,0,0);return m-n}
-const SET=['prov','model','fb','base','chunk','conc','temp','auto','ctx','grp','src'];
+const SET=['prov','model','fb','base','chunk','conc','temp','auto','ctx','grp','src','tmo'];
 function saveSet(){const o={};SET.forEach(i=>{const e=$('#'+i);o[i]=e.type==='checkbox'?e.checked:e.value});ls('tk_set',JSON.stringify(o))}
 function loadSet(){try{const o=JSON.parse(ls('tk_set')||'{}');SET.forEach(i=>{if(o[i]===undefined)return;const e=$('#'+i);if(e.type==='checkbox')e.checked=o[i];else e.value=o[i]});$('#baseBox').hidden=$('#prov').value!=='custom'}catch(e){}}
 
@@ -374,14 +375,13 @@ function setSt(i,s){const r=$('#r'+i);if(!r)return;r.className='row '+s;r.queryS
 function chunkP(paras,max){const o=[];let cur=[],n=0;for(const p of paras){if(n+p.length>max&&cur.length){o.push(cur);cur=[];n=0}cur.push(p);n+=p.length}if(cur.length)o.push(cur);return o}
 function chunks(paras,max){const out=[];let cur=[],n=0;for(const p of paras){if(n+p.length>max&&cur.length){out.push(cur.join('\n'));cur=[];n=0}cur.push(p);n+=p.length}if(cur.length)out.push(cur.join('\n'));return out}
 
-const E=(m,x)=>Object.assign(new Error(m),x);
+const E=(m,x)=>Object.assign(new Error(m),x);let thinkOff=true;
 async function callAI(system,user,signal,mdl){
  const p=$('#prov').value,key=$('#key').value.trim(),model=mdl||$('#model').value.trim(),temp=+$('#temp').value;
  let url,headers={'Content-Type':'application/json'},body,pick;
  if(p==='gemini'){
-  url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-  headers['x-goog-api-key']=key;
-  body={systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts:[{text:user}]}],generationConfig:{temperature:temp},safetySettings:['HARASSMENT','HATE_SPEECH','SEXUALLY_EXPLICIT','DANGEROUS_CONTENT'].map(c=>({category:'HARM_CATEGORY_'+c,threshold:'BLOCK_NONE'}))};
+  url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+  body={systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts:[{text:user}]}],generationConfig:Object.assign({temperature:temp},thinkOff?{thinkingConfig:{thinkingBudget:0}}:{}),safetySettings:['HARASSMENT','HATE_SPEECH','SEXUALLY_EXPLICIT','DANGEROUS_CONTENT'].map(c=>({category:'HARM_CATEGORY_'+c,threshold:'BLOCK_NONE'}))};
   pick=d=>{const c=d.candidates&&d.candidates[0],fr=c&&c.finishReason,bl=d.promptFeedback&&d.promptFeedback.blockReason;
    if(bl||(fr&&/SAFETY|PROHIBITED|BLOCKLIST|SPII|RECITATION|OTHER/.test(fr)))throw E('Bị chặn nội dung ('+(bl||fr)+')',{blocked:true});
    return{t:((c&&c.content&&c.content.parts)||[]).map(x=>x.text||'').join(''),cut:fr==='MAX_TOKENS',i:d.usageMetadata&&d.usageMetadata.promptTokenCount,o:d.usageMetadata&&d.usageMetadata.candidatesTokenCount}};
@@ -396,9 +396,16 @@ async function callAI(system,user,signal,mdl){
   body={model,temperature:temp,messages:[{role:'system',content:system},{role:'user',content:user}]};
   pick=d=>{const c=d.choices&&d.choices[0];if(c&&c.finish_reason==='content_filter')throw E('Bị chặn nội dung',{blocked:true});return{t:(c&&c.message&&c.message.content)||'',cut:!!c&&c.finish_reason==='length',i:d.usage&&d.usage.prompt_tokens,o:d.usage&&d.usage.completion_tokens}};
  }
- const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal});
- const d=await r.json().catch(()=>({}));
- if(!r.ok){const m=(d.error&&d.error.message)||d.error||r.statusText;throw E(`${r.status}: ${typeof m==='string'?m:JSON.stringify(m)}`,{status:r.status})}
+ const sec=+$('#tmo').value||90,tc=new AbortController(),tm=setTimeout(()=>tc.abort(),sec*1000),ab=()=>tc.abort();
+ if(signal)signal.addEventListener('abort',ab);
+ let r,d;
+ try{r=await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal:tc.signal});d=await r.json().catch(()=>({}))}
+ catch(e){
+  if(signal&&signal.aborted)throw e;
+  if(e.name==='AbortError')throw E('Quá thời gian chờ AI ('+sec+' giây)',{timeout:true});
+  throw E('Không kết nối được tới máy chủ AI (kiểm tra mạng, VPN hoặc trình chặn quảng cáo)',{});
+ }finally{clearTimeout(tm);if(signal)signal.removeEventListener('abort',ab)}
+ if(!r.ok){const m=(d.error&&d.error.message)||d.error||r.statusText;if(p==='gemini'&&r.status===400&&/think/i.test(String(m)))thinkOff=false;throw E(`${r.status}: ${typeof m==='string'?m:JSON.stringify(m)}`,{status:r.status})}
  const x=pick(d);use.i+=x.i||0;use.o+=x.o||0;use.r++;updUse();
  const t=x.t.trim();
  if(!t)throw E('AI trả về rỗng',{blocked:true});
@@ -410,20 +417,20 @@ async function waitQuota(ms){
  const end=Date.now()+ms;
  while(Date.now()<end){if(stop)throw new Error('stopped');const t=Math.ceil((end-Date.now())/1000);$('#stat').textContent=`Hết hạn mức. Tự chạy tiếp sau ${Math.floor(t/3600)} giờ ${Math.floor(t%3600/60)} phút. Giữ tab mở.`;await sleep(1000)}
 }
-async function waitOnline(){while(!navigator.onLine){if(stop)throw new Error('stopped');await sleep(2000)}}
+async function waitOnline(){for(let i=0;i<30&&!navigator.onLine;i++){if(stop)throw new Error('stopped');await sleep(2000)}}
 async function retry(system,user,nowait,fbNow,lbl){
- const fb=$('#fb').value.trim(),L=lbl||'AI';let useFb=!!(fbNow&&fb);
+ const fb=$('#fb').value.trim(),L=lbl||'AI';let useFb=!!(fbNow&&fb),waited=false;
  for(let a=0;;a++){
   try{return await callAI(system,user,ctrl.signal,useFb?fb:undefined)}
   catch(e){
    if(stop||e.name==='AbortError'||e.blocked||e.trunc)throw e;
-   if(!navigator.onLine){notify('err','Mất kết nối mạng, chờ có mạng để tiếp tục.');await waitOnline();a=Math.max(0,a-1);continue}
+   if(!navigator.onLine&&!waited){waited=true;notify('err','Điện thoại báo mất mạng, chờ tối đa 1 phút.');await waitOnline();a=Math.max(0,a-1);continue}
    if([401,403,404].includes(e.status))throw e;
    if(e.status===429&&a>=2){
     if(fb&&!useFb){useFb=true;a=0;notify('warn',`${L}: model chính hết hạn mức, chuyển sang model dự phòng.`);continue}
     if($('#auto').checked&&!nowait){const day=/day|daily/i.test(e.message);notify('err',`${L}: hết hạn mức ${day?'trong ngày, chờ tới lúc reset':'theo phút, chờ 5 phút'}. Giữ tab mở, trang sẽ tự dịch tiếp.`);await waitQuota(day?msToPT():300000);notify('info','Hết thời gian chờ, tiếp tục dịch.');useFb=false;a=0;continue}
    }
-   if(a>=3)throw e;
+   if(a>=(e.timeout?1:3))throw e;
    notify('warn',`${L}: lỗi ${e.status||'mạng'} (${String(e.message).slice(0,70)}), thử lại lần ${a+1}/3.`);
    await sleep(2000*(a+1)*(e.status===429?3:1));
   }
@@ -475,10 +482,10 @@ async function transChapter(c){
  const cx=$('#ctx').checked,pv=chapters[chapters.indexOf(c)-1];
  let tail=(pv&&pv.out)||'';const parts=[],notes=[];
  const cks=chunkP(c.paras,+$('#chunk').value||4000),ci=chapters.indexOf(c);let ok=false;
- live[ci]={n:cks.length,d:0,t:'',src:''};
+ live[ci]={n:cks.length,d:0,t:'',src:'',t0:Date.now()};
  try{for(const ps of cks){
   if(stop)throw new Error('stopped');
-  live[ci].src=ps.join(' ').slice(0,100);liveLast=ci;renderLive();
+  live[ci].t0=Date.now();live[ci].src=ps.join(' ').slice(0,100);liveLast=ci;renderLive();
   const r=await tChunk(ps,cx?tail.slice(-600):'','Chương '+(ci+1));parts.push(r.out);notes.push(...r.notes);tail=r.out;
   live[ci].d++;live[ci].t=parts.join('\n');renderLive();
  }ok=true}finally{if(ok)lastDone={i:ci,t:parts.join('\n')};delete live[ci];renderLive()}
@@ -578,33 +585,57 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState===
 window.addEventListener('offline',()=>{if(running)notify('err','Mất kết nối mạng. Việc dịch tạm chờ.')});
 window.addEventListener('online',()=>{if(running)notify('info','Đã có mạng trở lại, tiếp tục dịch.')});
 const live={};let liveLast=-1,lastDone=null,lastChk='';
+function liveHead(){
+ const ks=Object.keys(live);
+ const h=ks.map(k=>{const v=live[k],sec=Math.round((Date.now()-v.t0)/1000);return `<div><b>Đang dịch:</b> chương ${+k+1}, đoạn ${Math.min(v.d+1,v.n)}/${v.n}, đã chờ AI ${sec} giây<br><small>${esc(v.src)}…</small></div>`}).join('');
+ return h||(lastDone?`<div><b>Vừa dịch xong:</b> chương ${lastDone.i+1}</div>`:'Chưa có chương nào đang dịch.');
+}
 function renderLive(){
- const ks=Object.keys(live);$('#live').hidden=false;
- let h=ks.map(k=>{const v=live[k];return `<div><b>Đang dịch:</b> chương ${+k+1}, đoạn ${Math.min(v.d+1,v.n)}/${v.n}<br><small>${esc(v.src)}…</small></div>`}).join('');
- if(!ks.length&&lastDone)h=`<div><b>Vừa dịch xong:</b> chương ${lastDone.i+1}</div>`;
- $('#liveh').innerHTML=h||'Chưa có chương nào đang dịch.';
+ $('#live').hidden=false;$('#liveh').innerHTML=liveHead();
  const cur=live[liveLast],t=cur?cur.t:(lastDone?lastDone.t:'');
  const pre=$('#livet');pre.textContent=t||'(Đoạn đầu tiên đang được AI dịch...)';pre.scrollTop=pre.scrollHeight;
 }
+setInterval(()=>{if(Object.keys(live).length)$('#liveh').innerHTML=liveHead()},1000);
 async function geminiModels(){
- const j=await (await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=100',{headers:{'x-goog-api-key':$('#key').value.trim()}})).json();
+ const j=await (await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=100&key='+encodeURIComponent($('#key').value.trim()))).json();
  return(j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent')).map(m=>m.name.replace('models/','')).filter(n=>/flash/.test(n)&&!/image|tts|live|audio|embed/.test(n)).slice(0,8);
 }
 async function checkKey(){
- const key=$('#key').value.trim(),r=$('#keyres');
+ const key=$('#key').value.trim(),r=$('#keyres'),p=$('#prov').value,model=$('#model').value.trim();
  if(!key){r.textContent='Hãy nhập key trước.';return}
- lastChk=$('#prov').value+$('#model').value+key;r.textContent='Đang kiểm tra key...';
+ lastChk=p+model+key;r.textContent='Đang kiểm tra key...';
+ const ac=new AbortController(),to=setTimeout(()=>ac.abort(),10000);
  try{
-  await callAI('Chỉ trả lời đúng một từ.','Trả lời: OK');
-  r.textContent='✓ Key và model hoạt động tốt.';
+  if(p==='gemini'){
+   const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+'?key='+encodeURIComponent(key),{signal:ac.signal});
+   const d=await res.json().catch(()=>({}));
+   if(!res.ok)throw E((d.error&&d.error.message)||res.statusText,{status:res.status});
+   r.textContent='✓ Key hợp lệ và model tồn tại. Bạn có thể dịch.';return;
+  }
+  const base=p==='openai'?'https://api.openai.com/v1':$('#base').value.trim().replace(/\/$/,'');
+  const url=p==='anthropic'?'https://api.anthropic.com/v1/models':base+'/models';
+  const h=p==='anthropic'?{'x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}:{Authorization:'Bearer '+key};
+  const res=await fetch(url,{headers:h,signal:ac.signal});
+  const d=await res.json().catch(()=>({}));
+  if(!res.ok)throw E((d.error&&d.error.message)||res.statusText,{status:res.status});
+  const ids=(d.data||[]).map(m=>m.id);
+  r.textContent=(p!=='anthropic'&&ids.length&&!ids.includes(model))?'✓ Key hợp lệ, nhưng không thấy model "'+model+'" trong danh sách. Hãy kiểm tra tên model.':'✓ Key hợp lệ. Bạn có thể dịch.';
  }catch(e){
-  if(e.blocked||e.trunc){r.textContent='✓ Key hoạt động (AI có phản hồi).';return}
+  if(e.name==='AbortError'){r.textContent='✗ Quá 10 giây không có phản hồi. Kiểm tra mạng rồi bấm Kiểm tra key lại.';lastChk='';return}
+  if(e.name==='TypeError'){
+   const hu=p==='gemini'?'https://generativelanguage.googleapis.com/':p==='anthropic'?'https://api.anthropic.com/':p==='openai'?'https://api.openai.com/':$('#base').value.trim();
+   let reach=true;const a2=new AbortController(),t2=setTimeout(()=>a2.abort(),5000);
+   try{await fetch(hu,{mode:'no-cors',signal:a2.signal})}catch(x){reach=false}clearTimeout(t2);
+   lastChk='';
+   r.innerHTML=reach?'✗ Máy chủ AI có phản hồi nhưng yêu cầu kiểm tra bị chặn (Failed to fetch). Thường do trình chặn quảng cáo, DNS riêng tư hoặc cài đặt trình duyệt. Hãy tắt chúng rồi thử lại, hoặc thử Samsung Internet.':'✗ Không kết nối được tới máy chủ AI (Failed to fetch). Hãy kiểm tra mạng, tắt VPN hoặc DNS chặn, thử đổi giữa Wi-Fi và 4G/5G rồi bấm Kiểm tra key lại.';
+   return;
+  }
   let h='✗ '+esc(e.message);
-  if($('#prov').value==='gemini'&&e.status===404){
+  if(p==='gemini'&&e.status===404){
    try{const m=await geminiModels();if(m.length)h+='<br>Model đang dùng được, bấm để chọn:<br>'+m.map(n=>`<button class="alt" type="button" data-m="${esc(n)}" style="padding:4px 8px;margin:3px 3px 0 0;font-size:13px">${esc(n)}</button>`).join('')}catch(e2){}
-  }else if(e.status===400||e.status===401||e.status===403)h+='<br>Có thể key sai hoặc chưa được cấp quyền. Hãy kiểm tra lại key.';
+  }else if([400,401,403].includes(e.status))h+='<br>Có thể key sai hoặc chưa được cấp quyền. Hãy kiểm tra lại key.';
   r.innerHTML=h;
- }
+ }finally{clearTimeout(to)}
 }
 $('#chk').onclick=checkKey;
 $('#keyres').onclick=e=>{const b=e.target.closest('[data-m]');if(b){$('#model').value=b.dataset.m;saveSet();checkKey()}};
