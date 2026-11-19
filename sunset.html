@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sunset – Dịch epub convert bằng AI</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{--bg:#eef2ee;--card:#fff;--ink:#1c2a26;--mut:#5d6f68;--line:#d3ddd7;--ac:#1f7a5c;--acink:#fff;--err:#b3261e;--ok:#1f7a5c}
+@media(prefers-color-scheme:dark){:root{--bg:#121816;--card:#1a2420;--ink:#e6efe9;--mut:#93a8a0;--line:#2c3b35;--ac:#5fd0a3;--acink:#0c1914;--err:#ff8a80;--ok:#5fd0a3}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:760px;margin:0 auto;padding:20px 16px 60px}
+h1{font:700 28px/1.2 Georgia,"Times New Roman",serif;margin:8px 0 4px}
+h2{font:700 18px Georgia,serif;margin:0 0 12px}
+.sub{color:var(--mut);margin:0 0 20px}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+label{display:block;font-size:14px;color:var(--mut);margin:12px 0 4px}
+input,select,textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:9px 10px}
+textarea{min-height:130px;resize:vertical;font-size:14px}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+@media(max-width:520px){.g2,.g3{grid-template-columns:1fr}}
+button{font:inherit;font-weight:600;border:1px solid var(--ac);background:var(--ac);color:var(--acink);border-radius:6px;padding:10px 16px;cursor:pointer}
+button.alt{background:transparent;color:var(--ac)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.chk{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--mut);margin-top:10px}
+.chk input{width:auto}
+.prog{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:10px 0}
+.prog i{display:block;height:100%;width:0;background:var(--ac);transition:width .3s}
+#info{font-size:14px;color:var(--mut)}
+#list{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:6px}
+.row{display:flex;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line);font-size:14px;cursor:pointer}
+.row:last-child{border:0}
+.row b{width:20px;flex:none;text-align:center}
+.row span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row small{color:var(--mut)}
+.row.err b{color:var(--err)} .row.ok b{color:var(--ok)} .row.warn b{color:#c58a1b}
+pre{margin:0;padding:10px;white-space:pre-wrap;font:14px/1.6 Georgia,serif;background:var(--bg);border-bottom:1px solid var(--line)}
+.err-t{color:var(--err);font-size:13px}
+.row .rt{padding:0 8px;font-size:15px;line-height:1.5;flex:none}
+.note{font-size:13px;color:var(--mut);margin-top:8px}
+</style>
+</head>
+<body>
+<main>
+<h1>Sunset</h1>
+<p class="sub">Tải epub truyện convert, chọn prompt và AI, điền key để dịch tự động cả bộ.</p>
+
+<section>
+<h2>1. Chọn file epub</h2>
+<input type="file" id="file" accept=".epub">
+<div id="info" style="margin-top:8px">Chưa có file.</div>
+</section>
+
+<section>
+<h2>2. Prompt dịch</h2>
+<label for="src">Kiểu dịch</label>
+<select id="src">
+<option value="convert">Truyện convert (Hán Việt) sang tiếng Việt đúng ngữ pháp</option>
+<option value="zh">Bản gốc tiếng Trung sang tiếng Việt đúng ngữ pháp</option>
+</select>
+<label for="preset">Mẫu prompt</label>
+<select id="preset">
+<option value="tienhiep">Tiên hiệp, huyền huyễn, kiếm hiệp</option>
+<option value="ngontinh">Ngôn tình, đô thị, hiện đại</option>
+<option value="sat">Sát nghĩa, chỉ chỉnh câu cho mượt</option>
+<option value="bangdaitu">Chuẩn xưng hô: bảng đại từ cố định (ta, ngươi, hắn, nàng...)</option>
+</select>
+<label for="prompt">Nội dung prompt (sửa được)</label>
+<textarea id="prompt"></textarea>
+<label for="gloss">Bảng tên riêng, mỗi dòng một cặp: tên trong bản gốc = tên muốn dùng</label>
+<textarea id="gloss" style="min-height:80px" placeholder="Diệp Phàm = Diệp Phàm&#10;Thanh Vân Môn = Thanh Vân Môn"></textarea>
+<div class="g3" style="align-items:end;margin-top:4px"><div><label for="nf">Quét từ chương</label><input id="nf" type="number" value="1" min="1"></div><div><label for="nt">Đến chương (tối đa 10 chương mỗi lần)</label><input id="nt" type="number" value="5" min="1"></div><button id="names" class="alt" disabled>Gợi ý tên riêng</button></div>
+</section>
+
+<section>
+<h2>3. AI và key</h2>
+<div class="g2">
+<div><label for="prov">Nhà cung cấp</label>
+<select id="prov">
+<option value="gemini">Google Gemini</option>
+<option value="openai">OpenAI</option>
+<option value="anthropic">Anthropic Claude</option>
+<option value="custom">Tương thích OpenAI (DeepSeek, OpenRouter...)</option>
+</select></div>
+<div><label for="model">Tên model</label><input id="model" autocomplete="off"></div>
+</div>
+<div id="baseBox" hidden><label for="base">Base URL</label><input id="base" placeholder="https://api.deepseek.com/v1"></div>
+<label for="fb">Model dự phòng (tự đổi khi model chính hết hạn mức, để trống nếu không dùng)</label>
+<input id="fb" autocomplete="off" placeholder="ví dụ gemini-2.5-flash-lite">
+<label for="key">API key</label>
+<div style="display:flex;gap:8px"><input id="key" type="password" autocomplete="off" placeholder="Dán key vào đây"><button id="getkey" class="alt" type="button" style="flex:none;white-space:nowrap">Lấy key</button></div>
+<p class="note" id="keyhint"></p>
+<div class="chk"><input type="checkbox" id="rem"><label for="rem" style="margin:0">Nhớ key trên máy này (lưu dạng chữ thường, đừng bật trên máy dùng chung)</label></div>
+<div class="chk"><input type="checkbox" id="auto" checked><label for="auto" style="margin:0">Hết hạn mức thì tự chờ rồi dịch tiếp (giữ tab mở)</label></div>
+<div class="chk"><input type="checkbox" id="ctx" checked><label for="ctx" style="margin:0">Gửi kèm đoạn cuối chương trước làm ngữ cảnh</label></div>
+<div class="g3">
+<div><label for="chunk">Ký tự mỗi lượt gửi</label><input id="chunk" type="number" value="4000" min="500" step="500"></div>
+<div><label for="conc">Số chương dịch song song</label><input id="conc" type="number" value="2" min="1" max="6"></div>
+<div><label for="temp">Temperature</label><input id="temp" type="number" value="0.7" min="0" max="1.5" step="0.1"></div>
+</div>
+<div class="g2"><div><label for="pin">Giá mỗi 1 triệu token vào ($, để 0 nếu miễn phí)</label><input id="pin" type="number" value="0" min="0" step="0.01"></div><div><label for="pout">Giá mỗi 1 triệu token ra ($)</label><input id="pout" type="number" value="0" min="0" step="0.01"></div></div>
+<p class="note">Key chỉ gửi thẳng tới nhà cung cấp AI bạn chọn, không qua máy chủ nào khác. Nên tạo key riêng và đặt hạn mức chi tiêu.</p>
+</section>
+
+<section>
+<h2>4. Dịch</h2>
+<div class="g2">
+<div><label for="from">Từ chương</label><input id="from" type="number" value="1" min="1"></div>
+<div><label for="to">Đến chương</label><input id="to" type="number" value="3" min="1"></div>
+</div>
+<p class="note">Nên dịch thử 2 đến 3 chương đầu để xem chất lượng và chi phí, rồi mới tăng lên cả bộ.</p>
+<div id="est" class="note"></div>
+<div class="bar">
+<button id="go" disabled>Bắt đầu dịch</button>
+<button id="stop" class="alt" disabled>Dừng</button>
+<button id="dlE" class="alt" disabled>Tải EPUB</button>
+<button id="dlT" class="alt" disabled>Tải TXT</button>
+</div>
+<div class="prog"><i id="pb"></i></div>
+<div id="stat" class="note">Chưa chạy. Đừng đóng tab khi đang dịch. Chương có dấu ⚠ là chương cần xem lại, bấm vào dòng để đọc ghi chú.</div>
+<div id="use" class="note"></div>
+<div id="list" style="margin-top:10px" hidden></div>
+</section>
+<section>
+<h2>5. Tùy chọn xuất EPUB</h2>
+<div class="g2"><div><label for="bt">Tên truyện</label><input id="bt"></div><div><label for="au">Tác giả</label><input id="au"></div></div>
+<div class="g2"><div><label for="cover">Ảnh bìa (tuỳ chọn)</label><input id="cover" type="file" accept="image/*"></div><div><label for="grp">Số chương mỗi file</label><input id="grp" type="number" value="1" min="1"></div></div>
+<div class="bar"><button id="bk" class="alt" type="button">Sao lưu tiến độ ra file</button><button id="imp" class="alt" type="button">Nhập tiến độ từ file</button><button id="wipe" class="alt" type="button">Xóa dữ liệu đã lưu</button><input id="impf" type="file" accept=".json" hidden></div>
+<p class="note">Bản dịch tự lưu trong trình duyệt. Lần sau chỉ cần chọn lại đúng file epub gốc để dịch tiếp. Bấm ↻ cạnh chương để dịch lại riêng chương đó.</p>
+</section>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+const PRESETS={
+tienhiep:`Bạn là dịch giả truyện tiên hiệp, huyền huyễn, kiếm hiệp chuyên nghiệp. Hãy chuyển văn bản convert (máy dịch Hán Việt) sau đây sang tiếng Việt mượt mà, đúng ngữ pháp, đậm văn phong truyện kiếm hiệp, tiên hiệp.
+Quy tắc:
+- Giữ đúng nghĩa, không tóm tắt, không bỏ sót, không thêm ý.
+- Tên nhân vật, địa danh, môn phái, công pháp, cảnh giới giữ dạng Hán Việt và nhất quán theo bảng tên riêng.
+- Chỉnh đại từ, danh xưng cho tự nhiên (ta, ngươi, hắn, nàng, tiền bối, sư huynh...).
+- Giữ nguyên số đoạn, mỗi đoạn một dòng.
+- Chỉ trả về bản dịch, không giải thích.`,
+ngontinh:`Bạn là dịch giả truyện ngôn tình, đô thị hiện đại. Hãy chuyển văn bản convert sau đây sang tiếng Việt tự nhiên, mềm mại, đúng cách nói của người Việt hiện nay.
+Quy tắc:
+- Giữ đúng nghĩa, không tóm tắt, không bỏ sót, không thêm ý.
+- Tên người, địa danh giữ nhất quán theo bảng tên riêng.
+- Xưng hô theo quan hệ và hoàn cảnh (anh, em, cậu, tớ, chị, cô, tổng tài...), không dùng Hán Việt cứng nhắc.
+- Giữ nguyên số đoạn, mỗi đoạn một dòng.
+- Chỉ trả về bản dịch, không giải thích.`,
+sat:`Hãy biên tập văn bản convert sau đây thành tiếng Việt trôi chảy, sửa câu lủng củng, trật tự từ và dấu câu nhưng bám sát nghĩa gốc, giữ nguyên tên riêng và thuật ngữ Hán Việt.
+Giữ nguyên số đoạn, mỗi đoạn một dòng. Chỉ trả về bản đã sửa, không giải thích.`};
+PRESETS.bangdaitu=`**Vai trò:** Bạn là một dịch giả chuyên nghiệp, chuyên chuyển các tác phẩm văn học từ bản convert (máy dịch Hán Việt) sang tiếng Việt chuẩn ngữ pháp, với sự am hiểu sâu sắc về văn phong và ngữ cảnh.
+
+**Nhiệm vụ:** Biên dịch chính xác văn bản dưới đây. Tuân thủ **tuyệt đối** các quy tắc sau:
+
+**1. Quy tắc xưng hô (BẮT BUỘC):**
+Chỉ được dùng các đại từ nhân xưng và danh xưng sau, và dùng đúng nghĩa của chúng: ta, ngươi, ngài, hắn, nàng, nó, chúng ta, các ngươi, các ngài, các nàng, bọn họ, chính mình / bản thân, chính ngươi, người khác, mọi người, chư vị, bạn học, các bạn học, lão sư, các lão sư, ca, đệ, thúc, cữu, di / a di, bà bà, mụ mụ, gia gia, lão bản, nữ sĩ.
+Hãy chuẩn hóa mọi cách xưng hô khác trong bản convert (ví dụ "tôi", "anh", "em", "chàng", "thiếp", "huynh", "muội") về đúng từ tương ứng ở trên, dựa vào ngữ cảnh. Không dùng từ xưng hô nào ngoài danh sách này.
+
+**2. Quy tắc về Nội dung và Phong cách:**
+*   **Trung thành tuyệt đối:** Dịch đúng và đủ, không thêm thắt, không bình luận, không bỏ sót thông tin.
+*   **Giữ nguyên văn phong:** Duy trì phong cách văn học của tác giả.
+*   **Bản dịch tự nhiên:** Lời dịch phải trôi chảy, dễ hiểu trong ngữ cảnh tiếng Việt nhưng vẫn ưu tiên sự chính xác so với nguyên tác.
+*   **Giữ nguyên đơn vị:** Không quy đổi đơn vị tiền tệ hoặc các đơn vị đo lường khác.
+
+**3. Quy tắc về Định dạng:**
+*   **Cấu trúc dòng:** Giữ nguyên cấu trúc từng dòng. Một dòng trong văn bản gốc phải tương ứng với một dòng trong bản dịch.
+*   **Bố cục:** Không gộp hoặc tách đoạn. Giữ nguyên bố cục của văn bản gốc.
+*   **Dấu câu:** Hạn chế dùng dấu gạch ngang (em dash/en dash). Thay vào đó, hãy dùng dấu phẩy hoặc các liên từ phù hợp để nối các vế câu.
+
+**Mục tiêu cuối cùng:** Tạo ra một bản dịch trung thành tuyệt đối với nguyên tác về cả nội dung, định dạng và đặc biệt là cách xưng hô đã được quy định.`;
+const PRESETS_ZH={
+tienhiep:`Bạn là dịch giả truyện tiên hiệp, huyền huyễn, kiếm hiệp chuyên nghiệp. Hãy dịch văn bản tiếng Trung sau sang tiếng Việt chuẩn ngữ pháp, tự nhiên, đậm văn phong truyện kiếm hiệp, tiên hiệp.
+Quy tắc:
+- Dịch sát nghĩa, đầy đủ, không tóm tắt, không bỏ sót, không thêm ý.
+- Tên nhân vật, địa danh, môn phái, công pháp, cảnh giới phiên âm Hán Việt và nhất quán theo bảng tên riêng.
+- Thành ngữ, điển tích dịch thoát ý, giữ đúng sắc thái.
+- Đại từ, danh xưng cho tự nhiên (ta, ngươi, hắn, nàng, tiền bối, sư huynh...).
+- Giữ nguyên số đoạn, mỗi đoạn một dòng.
+- Chỉ trả về bản dịch, không giải thích.`,
+ngontinh:`Bạn là dịch giả truyện ngôn tình, đô thị hiện đại. Hãy dịch văn bản tiếng Trung sau sang tiếng Việt tự nhiên, mềm mại, đúng cách nói của người Việt hiện nay.
+Quy tắc:
+- Dịch đầy đủ, không tóm tắt, không bỏ sót, không thêm ý.
+- Tên người, địa danh dùng phiên âm Hán Việt hoặc theo bảng tên riêng, nhất quán cả bộ.
+- Xưng hô theo quan hệ và hoàn cảnh (anh, em, cậu, tớ, chị, cô, tổng tài...), không dùng Hán Việt cứng nhắc.
+- Giữ nguyên số đoạn, mỗi đoạn một dòng.
+- Chỉ trả về bản dịch, không giải thích.`,
+sat:`Hãy dịch văn bản tiếng Trung sau sang tiếng Việt đúng ngữ pháp, bám sát nghĩa gốc từng câu, câu chữ mượt mà, không lược ý. Tên riêng phiên âm Hán Việt và theo bảng tên riêng.
+Giữ nguyên số đoạn, mỗi đoạn một dòng. Chỉ trả về bản dịch, không giải thích.`};
+PRESETS_ZH.bangdaitu=`**Vai trò:** Bạn là một dịch giả chuyên nghiệp, chuyên dịch các tác phẩm văn học từ tiếng Trung sang tiếng Việt, với sự am hiểu sâu sắc về văn phong và ngữ cảnh.
+
+**Nhiệm vụ:** Dịch chính xác văn bản dưới đây. Tuân thủ **tuyệt đối** các quy tắc sau:
+
+**1. Bảng Ánh xạ Đại từ Nhân xưng (BẮT BUỘC):**
+Chỉ được sử dụng cách dịch đại từ nhân xưng và các danh xưng khác theo bảng dưới đây. Không được thay thế bằng bất kỳ từ nào khác (ví dụ: không dùng "chàng", "thiếp", "huynh", "muội").
+
+| Tiếng Trung | Tiếng Việt |
+| :--- | :--- |
+| 我 | ta |
+| 你 | ngươi |
+| 您 | ngài |
+| 他 | hắn |
+| 她 | nàng |
+| 它 | nó |
+| 我们 / 咱们 | chúng ta |
+| 你们 | các ngươi |
+| 您们 | các ngài |
+| 她们 | các nàng |
+| 它们 | bọn họ |
+| 自己 / 自个儿 | chính mình / bản thân |
+| 你自己 | chính ngươi |
+| 别人 / 他人 / 旁人 | người khác |
+| 大家伙儿 / 大伙儿 | mọi người |
+| 诸位 | chư vị |
+| 同学 | bạn học |
+| 同学们 | các bạn học |
+| 老师 | lão sư |
+| 老师们 | các lão sư |
+| 哥 | ca |
+| 弟 | đệ |
+| 叔 | thúc |
+| 舅 | cữu |
+| 姨 / 阿姨 | di / a di |
+| 奶奶 | bà bà |
+| 妈妈 | mụ mụ |
+| 爷爷 | gia gia |
+| 老板 | lão bản |
+| 女士 | nữ sĩ |
+
+**2. Quy tắc về Nội dung và Phong cách:**
+*   **Trung thành tuyệt đối:** Dịch đúng và đủ, không thêm thắt, không bình luận, không bỏ sót thông tin.
+*   **Giữ nguyên văn phong:** Duy trì phong cách văn học của tác giả.
+*   **Bản dịch tự nhiên:** Lời dịch phải trôi chảy, dễ hiểu trong ngữ cảnh tiếng Việt nhưng vẫn ưu tiên sự chính xác so với nguyên tác.
+*   **Giữ nguyên đơn vị:** Không quy đổi đơn vị tiền tệ hoặc các đơn vị đo lường khác.
+
+**3. Quy tắc về Định dạng:**
+*   **Cấu trúc dòng:** Giữ nguyên cấu trúc từng dòng. Một dòng trong văn bản gốc phải tương ứng với một dòng trong bản dịch.
+*   **Bố cục:** Không gộp hoặc tách đoạn. Giữ nguyên bố cục của văn bản gốc.
+*   **Dấu câu:** Hạn chế dùng dấu gạch ngang (em dash/en dash). Thay vào đó, hãy dùng dấu phẩy hoặc các liên từ phù hợp để nối các vế câu.
+
+**Mục tiêu cuối cùng:** Tạo ra một bản dịch trung thành tuyệt đối với nguyên tác về cả nội dung, định dạng và đặc biệt là cách xưng hô đã được quy định.`;
+const MODELS={gemini:'gemini-2.5-flash',openai:'gpt-4o-mini',anthropic:'claude-haiku-5-5',custom:'deepseek-chat'};
+let chapters=[],bookTitle='truyen',author='',bookId='',stop=false,ctrl=null,running=false;
+const idb=new Promise(r=>{try{const q=indexedDB.open('tk',1);q.onupgradeneeded=()=>q.result.createObjectStore('s');q.onsuccess=()=>r(q.result);q.onerror=()=>r(null)}catch(e){r(null)}});
+const dbGet=async k=>{const d=await idb;return d?new Promise(r=>{const q=d.transaction('s').objectStore('s').get(k);q.onsuccess=()=>r(q.result);q.onerror=()=>r(null)}):null};
+const dbSet=async(k,v)=>{const d=await idb;if(d)d.transaction('s','readwrite').objectStore('s').put(v,k)};
+const dirty=new Set();let pt=null,origCover=null,pendingImport=null,wl=null;const use={i:0,o:0,r:0};
+function persist(i){if(i!=null)dirty.add(i);clearTimeout(pt);pt=setTimeout(flush,1500)}
+async function flush(){
+ if(!bookId)return;const d=await idb;if(!d)return;
+ const st=d.transaction('s','readwrite').objectStore('s');
+ st.put({gloss:$('#gloss').value,prompt:$('#prompt').value,title:$('#bt').value,author:$('#au').value},bookId+'!meta');
+ dirty.forEach(i=>{const c=chapters[i];if(c)c.out==null?st.delete(bookId+'#'+i):st.put({i,out:c.out,notes:c.notes||[]},bookId+'#'+i)});
+ dirty.clear();
+}
+const dbRange=async pre=>{const d=await idb;if(!d)return[];return new Promise(r=>{const o=[],q=d.transaction('s').objectStore('s').openCursor(IDBKeyRange.bound(pre,pre+'\uffff'));q.onsuccess=()=>{const c=q.result;if(c){o.push(c.value);c.continue()}else r(o)};q.onerror=()=>r(o)})};
+function updUse(){const c=use.i/1e6*(+$('#pin').value||0)+use.o/1e6*(+$('#pout').value||0);$('#use').textContent=`Đã gọi ${use.r} request, ${use.i.toLocaleString('vi-VN')} token vào, ${use.o.toLocaleString('vi-VN')} token ra`+(c?`, khoảng $${c.toFixed(3)}`:'')+'.'}
+function updEst(){
+ if(!chapters.length)return;
+ const a=Math.max(1,+$('#from').value)-1,b=Math.min(+$('#to').value,chapters.length),mx=+$('#chunk').value||4000,zh=$('#src').value==='zh';
+ let req=0,len=0,n=0;for(let i=a;i<b;i++)if(chapters[i].out==null){n++;len+=chapters[i].len;req+=chunkP(chapters[i].paras,mx).length}
+ const ti=Math.round(len/(zh?1.5:2.5)+req*400),to=Math.round(zh?len:len/2.5*1.1),c=ti/1e6*(+$('#pin').value||0)+to/1e6*(+$('#pout').value||0);
+ $('#est').textContent=`Ước tính cho khoảng đã chọn: ${n} chương chưa dịch, khoảng ${req} request, ${ti.toLocaleString('vi-VN')} token vào, ${to.toLocaleString('vi-VN')} token ra`+(c?`, khoảng $${c.toFixed(3)}`:'')+' (chỉ để tham khảo).';
+}
+function msToPT(){const n=new Date(new Date().toLocaleString('en-US',{timeZone:'America/Los_Angeles'}));const m=new Date(n);m.setHours(24,1,0,0);return m-n}
+const SET=['prov','model','fb','base','chunk','conc','temp','auto','ctx','grp','src'];
+function saveSet(){const o={};SET.forEach(i=>{const e=$('#'+i);o[i]=e.type==='checkbox'?e.checked:e.value});ls('tk_set',JSON.stringify(o))}
+function loadSet(){try{const o=JSON.parse(ls('tk_set')||'{}');SET.forEach(i=>{if(o[i]===undefined)return;const e=$('#'+i);if(e.type==='checkbox')e.checked=o[i];else e.value=o[i]});$('#baseBox').hidden=$('#prov').value!=='custom'}catch(e){}}
+
+function ls(k,v){try{if(v===undefined)return localStorage.getItem(k);v===null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){return null}}
+function setPreset(){$('#prompt').value=($('#src').value==='zh'?PRESETS_ZH:PRESETS)[$('#preset').value]}
+function setProv(){const p=$('#prov').value;$('#model').value=MODELS[p];$('#baseBox').hidden=p!=='custom'}
+$('#preset').onchange=setPreset;$('#src').onchange=()=>{setPreset();$('#chunk').value=$('#src').value==='zh'?2000:4000};$('#prov').onchange=setProv;setPreset();setProv();
+if(ls('tk_key')){$('#key').value=ls('tk_key');$('#rem').checked=true}
+$('#rem').onchange=()=>{if(!$('#rem').checked)ls('tk_key',null)};
+loadSet();setPreset();document.addEventListener('change',saveSet);
+const KEYS={
+ gemini:['https://aistudio.google.com/apikey','Đăng nhập bằng tài khoản Google, bấm Create API key rồi copy key dán vào ô trên.'],
+ openai:['https://platform.openai.com/api-keys','Đăng nhập, bấm Create new secret key rồi copy ngay vì key chỉ hiện một lần. Thường phải nạp tiền trước khi dùng được.'],
+ anthropic:['https://console.anthropic.com/settings/keys','Đăng nhập, bấm Create Key rồi copy ngay. API Claude tính phí theo lượt dùng nên cần nạp tiền trước.'],
+ deepseek:['https://platform.deepseek.com/api_keys','Đăng nhập, tạo API key rồi copy. Base URL điền: https://api.deepseek.com/v1'],
+ openrouter:['https://openrouter.ai/settings/keys','Đăng nhập, tạo key rồi copy. Base URL điền: https://openrouter.ai/api/v1']};
+function keyInfo(){const p=$('#prov').value;if(p!=='custom')return KEYS[p];const b=$('#base').value.toLowerCase();return b.includes('deepseek')?KEYS.deepseek:KEYS.openrouter}
+function updKey(){$('#keyhint').textContent=keyInfo()[1]}
+$('#prov').addEventListener('change',updKey);$('#base').addEventListener('input',updKey);updKey();
+$('#getkey').onclick=()=>window.open(keyInfo()[0],'_blank','noopener');
+['gloss','prompt','bt','au'].forEach(id=>$('#'+id).addEventListener('input',()=>persist()));
+
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+function join(base,href){href=decodeURIComponent(href.split('#')[0]);const parts=(base+href).split('/'),out=[];for(const p of parts){if(p==='..')out.pop();else if(p!=='.'&&p!=='')out.push(p)}return out.join('/')}
+
+const CH=/^(第\s*[0-9零一二三四五六七八九十百千两]+\s*[章节回卷]|chương\s*\d+)/i;
+function splitParas(paras){
+ const idx=[];paras.forEach((p,i)=>{if(p.length<=60&&CH.test(p))idx.push(i)});
+ if(idx.length<2)return[paras];
+ const o=[];if(idx[0]>0)o.push(paras.slice(0,idx[0]));
+ idx.forEach((st,k)=>o.push(paras.slice(st,idx[k+1])));return o;
+}
+async function parseEpub(file){
+ const zip=await JSZip.loadAsync(file);
+ const cont=await zip.file('META-INF/container.xml').async('string');
+ const opfPath=cont.match(/full-path="([^"]+)"/)[1];
+ const base=opfPath.includes('/')?opfPath.replace(/[^/]+$/,''):'';
+ const opf=new DOMParser().parseFromString(await zip.file(opfPath).async('string'),'application/xml');
+ const t=opf.querySelector('metadata title');if(t&&t.textContent.trim())bookTitle=t.textContent.trim();
+ const cr=opf.querySelector('metadata creator');author=cr?cr.textContent.trim():'';
+ origCover=null;
+ try{const cm=opf.querySelector('metadata meta[name="cover"]'),ci=opf.querySelector('manifest > item[properties~="cover-image"]')||(cm&&opf.querySelector('manifest > item[id="'+cm.getAttribute('content')+'"]'));
+  if(ci){const cf=zip.file(join(base,ci.getAttribute('href')));if(cf){const mt=ci.getAttribute('media-type')||'';origCover={buf:await cf.async('arraybuffer'),ext:/png/.test(mt)?'png':/webp/.test(mt)?'webp':'jpg'}}}}catch(e){}
+ const man={};opf.querySelectorAll('manifest > item').forEach(i=>man[i.getAttribute('id')]=i.getAttribute('href'));
+ const list=[];
+ for(const ref of opf.querySelectorAll('spine > itemref')){
+  const href=man[ref.getAttribute('idref')];if(!href)continue;
+  const f=zip.file(join(base,href));if(!f)continue;
+  const doc=new DOMParser().parseFromString(await f.async('string'),'text/html');
+  let paras=[...doc.body.querySelectorAll('p,h1,h2,h3,h4,li')].map(e=>e.textContent.replace(/\s+/g,' ').trim()).filter(Boolean);
+  if(!paras.length)paras=doc.body.textContent.split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  for(const ps of splitParas(paras)){const len=ps.join('').length;if(len<40)continue;list.push({paras:ps,len,out:null,err:null,notes:[],title:ps[0].slice(0,80)})}
+ }
+ return list;
+}
+function applyImport(j){
+ (j.outs||[]).forEach((o,i)=>{if(o&&chapters[i]){chapters[i].out=o;chapters[i].notes=(j.notes||[])[i]||[];dirty.add(i)}});
+ if(j.gloss)$('#gloss').value=j.gloss;if(j.prompt)$('#prompt').value=j.prompt;if(j.title)$('#bt').value=j.title;if(j.author!=null)$('#au').value=j.author;persist();
+}
+function paint(){renderList();chapters.forEach((c,i)=>c.out&&setSt(i,c.notes&&c.notes.length?'warn':'ok'));const n=chapters.filter(c=>c.out).length;$('#dlE').disabled=$('#dlT').disabled=!n;return n}
+$('#file').onchange=async e=>{
+ const f=e.target.files[0];if(!f)return;
+ $('#info').textContent='Đang đọc file...';
+ try{
+  bookId=f.name+'|'+f.size;chapters=await parseEpub(f);dirty.clear();
+  const total=chapters.reduce((a,c)=>a+c.len,0);
+  $('#info').textContent=`${bookTitle}: ${chapters.length} chương, khoảng ${total.toLocaleString('vi-VN')} ký tự.`+(origCover?' Đã lấy ảnh bìa gốc.':'');
+  $('#to').value=Math.min(3,chapters.length);$('#from').value=1;$('#nt').value=Math.min(5,chapters.length);
+  $('#go').disabled=$('#names').disabled=!chapters.length;
+  $('#bt').value=bookTitle;$('#au').value=author;
+  const sv=await dbGet(bookId+'!meta');
+  if(sv){if(sv.gloss)$('#gloss').value=sv.gloss;if(sv.prompt)$('#prompt').value=sv.prompt;if(sv.title)$('#bt').value=sv.title;if(sv.author!=null)$('#au').value=sv.author}
+  (await dbRange(bookId+'#')).forEach(r=>{if(chapters[r.i]){chapters[r.i].out=r.out;chapters[r.i].notes=r.notes||[]}});
+  if(pendingImport){applyImport(pendingImport);pendingImport=null}
+  const n=paint();
+  if(n){const f1=chapters.findIndex(c=>!c.out);$('#info').textContent+=` Đã khôi phục ${n} chương đã dịch.`;if(f1>=0){$('#from').value=f1+1;$('#to').value=chapters.length}}
+  updEst();
+ }catch(err){$('#info').textContent='Không đọc được file: '+err.message}
+};
+const ptxt=c=>(c.notes&&c.notes.length?'⚠ '+c.notes.join('; ')+'\n\n':'')+(c.out||c.err||'Chưa dịch.');
+function renderList(){
+ const L=$('#list');L.hidden=!chapters.length;
+ L.innerHTML=chapters.map((c,i)=>`<div class="row" data-i="${i}" id="r${i}"><b>·</b><span>${i+1}. ${esc(c.title)}</span><small>${c.len.toLocaleString('vi-VN')}</small><button class="alt rt" data-rt="${i}" title="Dịch lại chương này">↻</button></div><pre id="p${i}" hidden></pre>`).join('');
+ L.onclick=e=>{
+  const rt=e.target.closest('.rt');
+  if(rt){if(running)return alert('Đang dịch, hãy bấm Dừng trước.');const k=+rt.dataset.rt;chapters[k].out=null;chapters[k].notes=[];persist(k);return run([k])}
+  const r=e.target.closest('.row');if(!r)return;const i=r.dataset.i,p=$('#p'+i);p.hidden=!p.hidden;if(!p.hidden)p.textContent=ptxt(chapters[i]);
+ };
+}
+function setSt(i,s){const r=$('#r'+i);if(!r)return;r.className='row '+s;r.querySelector('b').textContent={run:'…',ok:'✓',warn:'⚠',err:'✗'}[s]||'·';const p=$('#p'+i);if(s==='ok'||s==='warn'||s==='err')p.textContent=ptxt(chapters[i])}
+
+function chunkP(paras,max){const o=[];let cur=[],n=0;for(const p of paras){if(n+p.length>max&&cur.length){o.push(cur);cur=[];n=0}cur.push(p);n+=p.length}if(cur.length)o.push(cur);return o}
+function chunks(paras,max){const out=[];let cur=[],n=0;for(const p of paras){if(n+p.length>max&&cur.length){out.push(cur.join('\n'));cur=[];n=0}cur.push(p);n+=p.length}if(cur.length)out.push(cur.join('\n'));return out}
+
+const E=(m,x)=>Object.assign(new Error(m),x);
+async function callAI(system,user,signal,mdl){
+ const p=$('#prov').value,key=$('#key').value.trim(),model=mdl||$('#model').value.trim(),temp=+$('#temp').value;
+ let url,headers={'Content-Type':'application/json'},body,pick;
+ if(p==='gemini'){
+  url=`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  headers['x-goog-api-key']=key;
+  body={systemInstruction:{parts:[{text:system}]},contents:[{role:'user',parts:[{text:user}]}],generationConfig:{temperature:temp},safetySettings:['HARASSMENT','HATE_SPEECH','SEXUALLY_EXPLICIT','DANGEROUS_CONTENT'].map(c=>({category:'HARM_CATEGORY_'+c,threshold:'BLOCK_NONE'}))};
+  pick=d=>{const c=d.candidates&&d.candidates[0],fr=c&&c.finishReason,bl=d.promptFeedback&&d.promptFeedback.blockReason;
+   if(bl||(fr&&/SAFETY|PROHIBITED|BLOCKLIST|SPII|RECITATION|OTHER/.test(fr)))throw E('Bị chặn nội dung ('+(bl||fr)+')',{blocked:true});
+   return{t:((c&&c.content&&c.content.parts)||[]).map(x=>x.text||'').join(''),cut:fr==='MAX_TOKENS',i:d.usageMetadata&&d.usageMetadata.promptTokenCount,o:d.usageMetadata&&d.usageMetadata.candidatesTokenCount}};
+ }else if(p==='anthropic'){
+  url='https://api.anthropic.com/v1/messages';
+  headers['x-api-key']=key;headers['anthropic-version']='2023-06-01';headers['anthropic-dangerous-direct-browser-access']='true';
+  body={model,max_tokens:8000,temperature:Math.min(temp,1),system,messages:[{role:'user',content:user}]};
+  pick=d=>{if(d.stop_reason==='refusal')throw E('Bị từ chối nội dung',{blocked:true});return{t:(d.content||[]).map(x=>x.text||'').join(''),cut:d.stop_reason==='max_tokens',i:d.usage&&d.usage.input_tokens,o:d.usage&&d.usage.output_tokens}};
+ }else{
+  const b=p==='openai'?'https://api.openai.com/v1':$('#base').value.trim().replace(/\/$/,'');
+  url=b+'/chat/completions';headers['Authorization']='Bearer '+key;
+  body={model,temperature:temp,messages:[{role:'system',content:system},{role:'user',content:user}]};
+  pick=d=>{const c=d.choices&&d.choices[0];if(c&&c.finish_reason==='content_filter')throw E('Bị chặn nội dung',{blocked:true});return{t:(c&&c.message&&c.message.content)||'',cut:!!c&&c.finish_reason==='length',i:d.usage&&d.usage.prompt_tokens,o:d.usage&&d.usage.completion_tokens}};
+ }
+ const r=await fetch(url,{method:'POST',headers,body:JSON.stringify(body),signal});
+ const d=await r.json().catch(()=>({}));
+ if(!r.ok){const m=(d.error&&d.error.message)||d.error||r.statusText;throw E(`${r.status}: ${typeof m==='string'?m:JSON.stringify(m)}`,{status:r.status})}
+ const x=pick(d);use.i+=x.i||0;use.o+=x.o||0;use.r++;updUse();
+ const t=x.t.trim();
+ if(!t)throw E('AI trả về rỗng',{blocked:true});
+ if(x.cut)throw E('Bản dịch bị cắt do quá dài',{trunc:true});
+ return t;
+}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function waitQuota(ms){
+ const end=Date.now()+ms;
+ while(Date.now()<end){if(stop)throw new Error('stopped');const t=Math.ceil((end-Date.now())/1000);$('#stat').textContent=`Hết hạn mức. Tự chạy tiếp sau ${Math.floor(t/3600)} giờ ${Math.floor(t%3600/60)} phút. Giữ tab mở.`;await sleep(1000)}
+}
+async function retry(system,user,nowait,fbNow){
+ const fb=$('#fb').value.trim();let useFb=!!(fbNow&&fb);
+ for(let a=0;;a++){
+  try{return await callAI(system,user,ctrl.signal,useFb?fb:undefined)}
+  catch(e){
+   if(stop||e.name==='AbortError'||e.blocked||e.trunc)throw e;
+   if([401,403,404].includes(e.status))throw e;
+   if(e.status===429&&a>=2){
+    if(fb&&!useFb){useFb=true;a=0;continue}
+    if($('#auto').checked&&!nowait){await waitQuota(/day|daily/i.test(e.message)?msToPT():300000);useFb=false;a=0;continue}
+   }
+   if(a>=3)throw e;
+   await sleep(2000*(a+1)*(e.status===429?3:1));
+  }
+ }
+}
+const glossList=()=>$('#gloss').value.split('\n').map(l=>l.split('=').map(x=>x.trim())).filter(x=>x.length>=2&&x[0]&&x[1]);
+function sysFor(text){
+ let s=$('#prompt').value.trim();
+ const g=glossList(),low=text.toLowerCase(),rel=g.length<=40?g:g.filter(x=>low.includes(x[0].toLowerCase()));
+ if(rel.length)s+='\n\nBảng tên riêng (bắt buộc dùng đúng):\n'+rel.map(x=>x[0]+' = '+x[1]).join('\n');
+ if($('#ctx').checked)s+='\n\nNếu có phần [Ngữ cảnh đã dịch], chỉ dùng để giữ nhất quán xưng hô, tên riêng và mạch truyện; tuyệt đối không dịch lại hay chép lại phần đó.';
+ return s+'\n\nDòng đầu tiên của văn bản thường là tiêu đề chương, hãy giữ nó ở một dòng riêng. Không viết lời dẫn, lời chào hay ghi chú.';
+}
+function clean(t){
+ t=t.replace(/^```\w*\n?|\n?```$/g,'').trim();
+ const L=t.split('\n').map(x=>x.trim()).filter(Boolean);
+ while(L.length>1&&/^(dưới đây|đây là|sau đây|bản dịch|here)/i.test(L[0])&&/[:：]$/.test(L[0])&&L[0].length<120)L.shift();
+ return L.join('\n');
+}
+function check(inP,out,zh){
+ const o=out.split('\n').filter(Boolean).length,r=out.replace(/\n/g,'').length/Math.max(1,inP.join('').length);
+ if(r<(zh?1:0.55))return'bản dịch ngắn bất thường, có thể thiếu nội dung';
+ const lo=inP.length<4?0.3:0.7,hi=inP.length<4?3:1.4,pr=o/inP.length;
+ if(pr<lo||pr>hi)return`lệch số đoạn (${o} so với ${inP.length})`;
+ return'';
+}
+async function tChunk(ps,tail){
+ const zh=$('#src').value==='zh',text=ps.join('\n');
+ const u=tail?`[Ngữ cảnh đã dịch]\n${tail}\n[Hết ngữ cảnh]\n\n[Văn bản cần dịch]\n${text}`:text;
+ const half=async()=>{const h=Math.ceil(ps.length/2),x=await tChunk(ps.slice(0,h),tail),y=await tChunk(ps.slice(h),x.out.slice(-600)||tail);return{out:x.out+'\n'+y.out,notes:x.notes.concat(y.notes)}};
+ let out='',bad='';
+ for(let k=0;k<2;k++){
+  try{
+   out=clean(await retry(sysFor(text),u));bad=check(ps,out,zh);
+   if(!bad)return{out,notes:[]};
+  }catch(e){
+   if(!(e.blocked||e.trunc))throw e;
+   if(ps.length>1)return half();
+   if($('#fb').value.trim()){try{const o2=clean(await retry(sysFor(text),u,false,true));if(o2&&!check(ps,o2,zh))return{out:o2,notes:[]}}catch(e2){if(stop)throw e2}}
+   return{out:text,notes:['có đoạn bị chặn hoặc quá dài nên được giữ nguyên bản gốc chưa dịch']};
+  }
+ }
+ if(ps.length>1)return half();
+ return{out,notes:['cần kiểm tra: '+bad]};
+}
+async function transChapter(c){
+ const cx=$('#ctx').checked,pv=chapters[chapters.indexOf(c)-1];
+ let tail=(pv&&pv.out)||'';const parts=[],notes=[];
+ for(const ps of chunkP(c.paras,+$('#chunk').value||4000)){
+  if(stop)throw new Error('stopped');
+  const r=await tChunk(ps,cx?tail.slice(-600):'');parts.push(r.out);notes.push(...r.notes);tail=r.out;
+ }
+ const out=parts.join('\n'),low=c.paras.join('\n').toLowerCase(),lo=out.toLowerCase();
+ const miss=glossList().filter(x=>x[0].length>=2&&low.split(x[0].toLowerCase()).length>2&&!lo.includes(x[1].toLowerCase())).map(x=>x[1]);
+ if(miss.length)notes.push('có thể thiếu tên riêng: '+miss.slice(0,5).join(', '));
+ if(c.paras[0].length<=80&&out.split('\n')[0].length>120)notes.push('dòng tiêu đề có thể bị lệch');
+ c.notes=[...new Set(notes)];
+ return out;
+}
+
+$('#names').onclick=async()=>{
+ if(!$('#key').value.trim())return alert('Hãy nhập API key.');
+ stop=false;ctrl=new AbortController();
+ const bt=$('#names');bt.disabled=true;bt.textContent='Đang quét...';
+ try{
+  const a=Math.max(1,+$('#nf').value)-1,b=Math.min(+$('#nt').value,chapters.length,a+10);
+  const sample=chapters.slice(a,b).map(c=>c.paras.join('\n').slice(0,3500)).join('\n\n');
+  const zh=$('#src').value==='zh',sys='Bạn là biên tập viên truyện dịch. Từ đoạn truyện '+(zh?'tiếng Trung':'convert (Hán Việt máy dịch)')+' dưới đây, liệt kê các tên riêng quan trọng: nhân vật, địa danh, môn phái, thế lực, công pháp, bảo vật, cảnh giới. Mỗi dòng một mục theo dạng: '+(zh?'tên gốc tiếng Trung = tên Hán Việt đề xuất.':'tên trong văn bản = tên chuẩn đề xuất (giữ dạng Hán Việt, hoặc Việt hóa nếu hợp lý).')+' Chỉ trả về danh sách, không giải thích.';
+  const r=await retry(sys,sample,true),have=new Set(glossList().map(x=>x[0].toLowerCase()));
+  const add=r.split('\n').map(l=>l.trim()).filter(l=>l.includes('=')&&!have.has(l.split('=')[0].trim().toLowerCase()));
+  const g=$('#gloss');g.value=(g.value.trim()?g.value.trim()+'\n':'')+add.join('\n');persist();
+ }catch(e){alert('Lỗi: '+e.message)}
+ bt.disabled=false;bt.textContent='Gợi ý tên riêng';
+};
+
+async function lockScreen(){try{if(navigator.wakeLock)wl=await navigator.wakeLock.request('screen')}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(running&&document.visibilityState==='visible')lockScreen()});
+async function run(list){
+ const key=$('#key').value.trim();
+ if(!key)return alert('Hãy nhập API key.');
+ if($('#prov').value==='custom'&&!$('#base').value.trim())return alert('Hãy nhập Base URL.');
+ if($('#rem').checked)ls('tk_key',key);
+ stop=false;ctrl=new AbortController();running=true;
+ $('#go').disabled=true;$('#stop').disabled=false;lockScreen();
+ const a=Math.max(1,+$('#from').value)-1,b=Math.min(+$('#to').value,chapters.length);
+ const queue=[];if(list)queue.push(...list);else for(let i=a;i<b;i++)if(chapters[i].out==null)queue.push(i);
+ const total=list?list.length:b-a;let done=list?0:total-queue.length;
+ const upd=()=>{$('#pb').style.width=(total?done/total*100:0)+'%';$('#stat').textContent=`Đã dịch ${done}/${total} chương trong khoảng đã chọn.`};
+ upd();
+ async function worker(){
+  while(queue.length&&!stop){
+   const i=queue.shift();setSt(i,'run');
+   try{chapters[i].out=await transChapter(chapters[i]);chapters[i].err=null;setSt(i,chapters[i].notes.length?'warn':'ok');done++;persist(i)}
+   catch(e){if(stop){setSt(i,'');return}chapters[i].err='Lỗi: '+e.message;setSt(i,'err');if([401,403,404].includes(e.status)){stop=true;ctrl.abort();$('#stat').textContent='Dừng vì lỗi key hoặc tên model: '+e.message}}
+   upd();$('#dlE').disabled=$('#dlT').disabled=false;
+  }
+ }
+ await Promise.all(Array.from({length:Math.max(1,Math.min(6,+$('#conc').value||1))},worker));
+ running=false;$('#go').disabled=false;$('#stop').disabled=true;try{wl&&wl.release()}catch(e){}
+ if(!$('#stat').textContent.startsWith('Dừng vì'))$('#stat').textContent=(stop?'Đã dừng. ':'Xong. ')+`Đã dịch ${done}/${total} chương. Chương lỗi (✗) sẽ được dịch lại khi bấm Bắt đầu. Chương có ⚠ nên mở xem ghi chú, bấm ↻ để dịch lại.`;
+ flush();updEst();
+}
+$('#go').onclick=()=>run();
+$('#stop').onclick=()=>{stop=true;ctrl&&ctrl.abort();$('#stat').textContent='Đang dừng...'};
+
+function save(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
+const doneList=()=>chapters.map((c,i)=>({c,i})).filter(x=>x.c.out);
+$('#dlT').onclick=()=>save(new Blob([doneList().map(x=>x.c.out).join('\n\n=====\n\n')],{type:'text/plain;charset=utf-8'}),bookTitle+'-vi.txt');
+$('#dlE').onclick=async()=>{
+ const ch=doneList(),z=new JSZip(),N=Math.max(1,+$('#grp').value||1);
+ const title=$('#bt').value.trim()||bookTitle,auth=$('#au').value.trim(),up=$('#cover').files[0];
+ let ce='',cv=null;
+ if(up){cv=up;ce=/png/i.test(up.type)?'png':/webp/i.test(up.type)?'webp':'jpg';z.file('OEBPS/cover.'+ce,await up.arrayBuffer())}
+ else if(origCover){cv=true;ce=origCover.ext;z.file('OEBPS/cover.'+ce,origCover.buf)}
+ z.file('mimetype','application/epub+zip',{compression:'STORE'});
+ z.file('META-INF/container.xml','<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>');
+ const titles=ch.map(x=>{const l=x.c.out.split('\n')[0].trim();return l.length<=80?l:'Chương '+(x.i+1)});
+ const X='<?xml version="1.0" encoding="utf-8"?>',nf=Math.ceil(ch.length/N);
+ for(let f=0;f<nf;f++){
+  const secs=ch.slice(f*N,f*N+N).map((x,j)=>{
+   const lines=x.c.out.split('\n').map(s=>s.trim()).filter(Boolean);
+   return `<section id="s${f*N+j}">`+lines.map((l,m)=>m===0&&l.length<=80?`<h2>${esc(l)}</h2>`:`<p>${esc(l)}</p>`).join('\n')+'</section>';
+  }).join('\n');
+  z.file(`OEBPS/c${f+1}.xhtml`,`${X}<html xmlns="http://www.w3.org/1999/xhtml" lang="vi"><head><title>${esc(titles[f*N])}</title><style>p{text-indent:1.5em;margin:.4em 0;line-height:1.6}section{page-break-before:always}</style></head><body>${secs}</body></html>`);
+ }
+ z.file('OEBPS/nav.xhtml',`${X}<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>Mục lục</title></head><body><nav epub:type="toc"><ol>${titles.map((t,k)=>`<li><a href="c${Math.floor(k/N)+1}.xhtml#s${k}">${esc(t)}</a></li>`).join('')}</ol></nav></body></html>`);
+ const mt={png:'image/png',webp:'image/webp',jpg:'image/jpeg'}[ce];
+ z.file('OEBPS/content.opf',`${X}<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">tk-${Date.now()}</dc:identifier><dc:title>${esc(title)}</dc:title>${auth?`<dc:creator>${esc(auth)}</dc:creator>`:''}<dc:language>vi</dc:language>${cv?'<meta name="cover" content="cov"/>':''}<meta property="dcterms:modified">${new Date().toISOString().replace(/\.\d+Z/,'Z')}</meta></metadata><manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>${cv?`<item id="cov" href="cover.${ce}" media-type="${mt}" properties="cover-image"/>`:''}${Array.from({length:nf},(_,f)=>`<item id="c${f+1}" href="c${f+1}.xhtml" media-type="application/xhtml+xml"/>`).join('')}</manifest><spine>${Array.from({length:nf},(_,f)=>`<itemref idref="c${f+1}"/>`).join('')}</spine></package>`);
+ save(await z.generateAsync({type:'blob',mimeType:'application/epub+zip'}),title+'-vi.epub');
+};
+$('#bk').onclick=()=>{if(!chapters.length)return alert('Chưa có truyện.');save(new Blob([JSON.stringify({v:2,outs:chapters.map(c=>c.out),notes:chapters.map(c=>c.notes||[]),gloss:$('#gloss').value,prompt:$('#prompt').value,title:$('#bt').value,author:$('#au').value})],{type:'application/json'}),($('#bt').value||bookTitle)+'-tiendo.json')};
+$('#imp').onclick=()=>$('#impf').click();
+$('#impf').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const j=JSON.parse(await f.text());if(chapters.length){applyImport(j);paint();updEst();alert('Đã nhập tiến độ.')}else{pendingImport=j;alert('Đã đọc file. Bây giờ hãy chọn file epub gốc để áp dụng.')}}catch(err){alert('File tiến độ không hợp lệ.')}e.target.value=''};
+$('#wipe').onclick=async()=>{if(!confirm('Xóa toàn bộ bản dịch đã lưu và key trong trình duyệt này?'))return;const d=await idb;if(d)d.transaction('s','readwrite').objectStore('s').clear();ls('tk_key',null);ls('tk_set',null);$('#key').value='';alert('Đã xóa.')};
+['from','to','chunk','src','pin','pout'].forEach(id=>['input','change'].forEach(ev=>$('#'+id).addEventListener(ev,updEst)));
+window.addEventListener('beforeunload',e=>{if(running){e.preventDefault();e.returnValue=''}});
+</script>
+</body>
+</html>
